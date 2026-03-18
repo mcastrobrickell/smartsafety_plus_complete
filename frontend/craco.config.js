@@ -1,3 +1,9 @@
+const path = require('path');
+
 module.exports = {
-  // Configuración de craco para React
+  webpack: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
 };
