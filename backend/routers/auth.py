@@ -11,7 +11,8 @@ import uuid
 router = APIRouter(tags=["auth"])
 
 @router.post("/auth/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
+@limiter.limit("5/minute")
+async def register(request: Request, user_data: UserCreate):
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -40,7 +41,8 @@ async def register(user_data: UserCreate):
     return TokenResponse(access_token=token, user=user_response)
 
 @router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+@limiter.limit("10/minute")
+async def login(request: Request, credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")

@@ -4,19 +4,22 @@ Gestión integral de seguridad operativa y prevención de riesgos
 
 All business logic lives in routers/. This file only:
   1. Creates the FastAPI app
-  2. Configures CORS middleware
+  2. Configures security middleware (CORS, rate limiting, audit trail)
   3. Mounts all routers under /api
   4. Seeds initial users on startup
 """
 from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 import os
 import uuid
 from datetime import datetime, timezone
 
 from config import db, UPLOADS_DIR, logger
 from utils.auth import hash_password
+from utils.rate_limit import limiter, rate_limit_handler
+from utils.middleware import AuditTrailMiddleware
 
 # Import all routers
 from routers.auth import router as auth_router
@@ -35,17 +38,31 @@ from routers.ecosystem import router as ecosystem_router
 app = FastAPI(
     title="SmartSafety+ API",
     description="Gestión integral de seguridad operativa y prevención de riesgos",
-    version="2.0.0"
+    version="2.1.0"
 )
 
-# ─── CORS ───────────────────────────────────────────────────────────────
+# ─── Rate Limiter ──────────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+# ─── CORS (restrictive — configure via env) ───────────────────────────
+# Default allows common local dev origins.
+# In production set CORS_ORIGINS=https://smartsafety.tecops.cl
+_default_origins = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+_cors_origins = os.environ.get('CORS_ORIGINS', _default_origins).split(',')
+# Strip whitespace from each origin
+_cors_origins = [o.strip() for o in _cors_origins if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+# ─── Audit Trail Middleware ────────────────────────────────────────────
+app.add_middleware(AuditTrailMiddleware)
 
 # ─── API Router (prefix /api) ──────────────────────────────────────────
 api = APIRouter(prefix="/api")
@@ -74,14 +91,19 @@ app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads
 # ─── Health Check ──────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "SmartSafety+ API", "version": "2.0.0"}
+    return {"status": "healthy", "service": "SmartSafety+ API", "version": "2.1.0"}
 
 # ─── Startup: Seed initial users ──────────────────────────────────────
 @app.on_event("startup")
 async def setup_initial_data():
     # Ensure directories exist
     (UPLOADS_DIR / "scans").mkdir(exist_ok=True)
-    
+
+    # Create MongoDB indexes for audit trail
+    await db.audit_log.create_index([("timestamp", -1)])
+    await db.audit_log.create_index("user_email")
+    await db.audit_log.create_index("method")
+
     logger.info("Verificando usuarios iniciales para SmartSafety+...")
     initial_users = [
         {"email": "superadmin@smartsafety.cl", "password": "super123", "name": "Super Admin Safety", "role": "superadmin"},
@@ -101,6 +123,8 @@ async def setup_initial_data():
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
             logger.info(f"✅ Usuario creado: {user_data['email']}")
+
+    logger.info("🔒 Security: CORS restrictivo, Rate limiting, Audit trail activos")
 
 # ─── Shutdown ──────────────────────────────────────────────────────────
 @app.on_event("shutdown")

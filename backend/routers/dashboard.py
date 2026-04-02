@@ -1,7 +1,9 @@
-"""SmartSafety+ - Dashboard Router"""
-from fastapi import APIRouter, Depends
+"""SmartSafety+ - Dashboard & Audit Router"""
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
 from config import db
 from utils.auth import get_current_user
+from utils.pagination import paginated_find
 from datetime import datetime, timezone
 
 router = APIRouter(tags=["dashboard"])
@@ -74,3 +76,72 @@ async def get_dashboard_charts(current_user: dict = Depends(get_current_user)):
         "epp_costs_by_center": [{"center": item["_id"] or "Sin asignar", "cost": item["total_cost"]} for item in epp_by_center]
     }
 
+
+# ================== AUDIT LOG ==================
+
+@router.get("/audit-log")
+async def get_audit_log(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    method: Optional[str] = None,
+    user_email: Optional[str] = None,
+    path_contains: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get audit trail. Admin/SuperAdmin only."""
+    if current_user["role"] not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    query = {}
+    if method:
+        query["method"] = method.upper()
+    if user_email:
+        query["user_email"] = {"$regex": user_email, "$options": "i"}
+    if path_contains:
+        query["path"] = {"$regex": path_contains, "$options": "i"}
+
+    return await paginated_find(
+        db.audit_log,
+        query=query,
+        sort_field="timestamp",
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/audit-log/stats")
+async def get_audit_stats(current_user: dict = Depends(get_current_user)):
+    """Get audit summary stats. Admin/SuperAdmin only."""
+    if current_user["role"] not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    total = await db.audit_log.count_documents({})
+
+    # Actions by method
+    by_method = await db.audit_log.aggregate([
+        {"$group": {"_id": "$method", "count": {"$sum": 1}}}
+    ]).to_list(10)
+
+    # Actions by user (top 10)
+    by_user = await db.audit_log.aggregate([
+        {"$match": {"user_email": {"$ne": None}}},
+        {"$group": {"_id": "$user_email", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]).to_list(10)
+
+    # Failed requests (4xx/5xx)
+    errors = await db.audit_log.count_documents({"status_code": {"$gte": 400}})
+
+    # Last 24h activity
+    from datetime import timedelta
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    last_24h = await db.audit_log.count_documents({"timestamp": {"$gte": yesterday}})
+
+    return {
+        "total_actions": total,
+        "last_24h": last_24h,
+        "errors": errors,
+        "by_method": {item["_id"]: item["count"] for item in by_method if item["_id"]},
+        "top_users": [{"email": item["_id"], "actions": item["count"]} for item in by_user],
+    }

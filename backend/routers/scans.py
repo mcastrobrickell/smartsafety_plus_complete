@@ -2,13 +2,15 @@
 Improvements:
   - Images saved to filesystem instead of base64 in MongoDB
   - Paginated list endpoints
+  - Rate limiting on AI analysis
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query, Request
 from typing import Optional
 from config import db, EMERGENT_LLM_KEY, UPLOADS_DIR, logger
 from models.schemas import SafetyFinding
 from utils.auth import get_current_user
 from utils.pagination import paginated_find
+from utils.rate_limit import limiter
 from openai import AsyncOpenAI
 from datetime import datetime, timezone
 import uuid
@@ -113,7 +115,9 @@ async def delete_scan(scan_id: str, current_user: dict = Depends(get_current_use
 
 
 @router.post("/scans/analyze")
+@limiter.limit("20/minute")
 async def analyze_scan(
+    request: Request,
     name: str = Form(...),
     location: str = Form(...),
     procedure_id: Optional[str] = Form(None),

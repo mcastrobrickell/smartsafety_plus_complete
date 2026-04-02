@@ -1,9 +1,10 @@
 """SmartSafety+ - Notifications Router (Email, SMS, In-App)"""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from config import db, RESEND_API_KEY, SENDER_EMAIL, TWILIO_PHONE_NUMBER, twilio_client, resend, logger
 from models.schemas import EmailNotificationRequest, SMSNotificationRequest
 from utils.auth import get_current_user
 from utils.email import generate_alert_html
+from utils.rate_limit import limiter
 from datetime import datetime, timezone
 import uuid
 import asyncio
@@ -47,7 +48,8 @@ async def get_notifications(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/notifications/send-alert")
-async def send_notification_alert(request: EmailNotificationRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("15/minute")
+async def send_notification_alert(request: Request, body: EmailNotificationRequest, current_user: dict = Depends(get_current_user)):
     """Send email notification for safety alerts"""
     
     if not RESEND_API_KEY:
@@ -56,22 +58,22 @@ async def send_notification_alert(request: EmailNotificationRequest, current_use
     finding = None
     incident = None
     
-    if request.finding_id:
-        finding = await db.findings.find_one({"id": request.finding_id}, {"_id": 0})
+    if body.finding_id:
+        finding = await db.findings.find_one({"id": body.finding_id}, {"_id": 0})
         if not finding:
             raise HTTPException(status_code=404, detail="Finding not found")
     
-    if request.incident_id:
-        incident = await db.incidents.find_one({"id": request.incident_id}, {"_id": 0})
+    if body.incident_id:
+        incident = await db.incidents.find_one({"id": body.incident_id}, {"_id": 0})
         if not incident:
             raise HTTPException(status_code=404, detail="Incident not found")
     
-    html_content = generate_alert_html(finding, incident, request.custom_message)
+    html_content = generate_alert_html(finding, incident, body.custom_message)
     
     params = {
         "from": SENDER_EMAIL,
-        "to": [request.recipient_email],
-        "subject": request.subject,
+        "to": [body.recipient_email],
+        "subject": body.subject,
         "html": html_content
     }
     
@@ -82,10 +84,10 @@ async def send_notification_alert(request: EmailNotificationRequest, current_use
         notification_log = {
             "id": str(uuid.uuid4()),
             "type": "email",
-            "recipient": request.recipient_email,
-            "subject": request.subject,
-            "finding_id": request.finding_id,
-            "incident_id": request.incident_id,
+            "recipient": body.recipient_email,
+            "subject": body.subject,
+            "finding_id": body.finding_id,
+            "incident_id": body.incident_id,
             "sent_by": current_user.get("id"),
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "status": "sent",
@@ -95,7 +97,7 @@ async def send_notification_alert(request: EmailNotificationRequest, current_use
         
         return {
             "status": "success",
-            "message": f"Email enviado a {request.recipient_email}",
+            "message": f"Email enviado a {body.recipient_email}",
             "email_id": email_result.get("id") if email_result else None
         }
     except Exception as e:
@@ -144,7 +146,8 @@ async def send_critical_finding_alert(finding_id: str, current_user: dict = Depe
 
 
 @router.post("/notifications/send-sms")
-async def send_sms_notification(request: SMSNotificationRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def send_sms_notification(request: Request, body: SMSNotificationRequest, current_user: dict = Depends(get_current_user)):
     """Send SMS notification for safety alerts"""
     
     if not twilio_client:
@@ -154,20 +157,20 @@ async def send_sms_notification(request: SMSNotificationRequest, current_user: d
         raise HTTPException(status_code=500, detail="Twilio phone number not configured")
     
     # Format phone number (ensure E.164 format)
-    phone = request.phone_number
+    phone = body.phone_number
     if not phone.startswith('+'):
         phone = f"+{phone}"
     
     # Build message
-    message_body = request.message
+    message_body = body.message
     
-    if request.finding_id:
-        finding = await db.findings.find_one({"id": request.finding_id}, {"_id": 0})
+    if body.finding_id:
+        finding = await db.findings.find_one({"id": body.finding_id}, {"_id": 0})
         if finding:
             message_body = f"🚨 ALERTA SmartSafety+\nHallazgo: {finding.get('category', 'N/A')}\nSeveridad: {finding.get('severity', 'N/A')}\n{finding.get('description', '')[:100]}"
     
-    if request.incident_id:
-        incident = await db.incidents.find_one({"id": request.incident_id}, {"_id": 0})
+    if body.incident_id:
+        incident = await db.incidents.find_one({"id": body.incident_id}, {"_id": 0})
         if incident:
             message_body = f"🚨 INCIDENTE SmartSafety+\n{incident.get('title', 'N/A')}\nSeveridad: {incident.get('severity', 'N/A')}\nUbicacion: {incident.get('location', 'N/A')}"
     
@@ -185,8 +188,8 @@ async def send_sms_notification(request: SMSNotificationRequest, current_user: d
             "type": "sms",
             "recipient": phone,
             "message": message_body[:200],
-            "finding_id": request.finding_id,
-            "incident_id": request.incident_id,
+            "finding_id": body.finding_id,
+            "incident_id": body.incident_id,
             "sent_by": current_user.get("id"),
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "status": "sent",
