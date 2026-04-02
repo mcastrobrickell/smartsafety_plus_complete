@@ -50,11 +50,9 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
 # ─── CORS (restrictive — configure via env) ───────────────────────────
-# Default allows common local dev origins.
-# In production set CORS_ORIGINS=https://smartsafety.tecops.cl
-_default_origins = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+# In production set CORS_ORIGINS in Railway environment variables
+_default_origins = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,https://smartsafety.tecops.cl,http://smartsafety.tecops.cl"
 _cors_origins = os.environ.get('CORS_ORIGINS', _default_origins).split(',')
-# Strip whitespace from each origin
 _cors_origins = [o.strip() for o in _cors_origins if o.strip()]
 
 app.add_middleware(
