@@ -1,1 +1,1 @@
-from models.schemas import *
+# SmartSafety+ Models
