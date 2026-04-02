@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.env
+.git
+.github
+uploads/*.png
+uploads/*.jpg
+uploads/scans/*
+tests/
+*.md
+server_monolith_backup.py

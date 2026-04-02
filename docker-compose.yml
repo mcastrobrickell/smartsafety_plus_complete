@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: ss-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: smartsafety
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (FastAPI) ──────────────────────────────
+  backend:
+    build: ./backend
+    container_name: ss-backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_URL: mongodb://mongodb:27017
+      DB_NAME: smartsafety
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production_2026}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:80,http://frontend:80
+      EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SENDER_EMAIL: ${SENDER_EMAIL:-onboarding@resend.dev}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Frontend (React + Nginx) ───────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: http://localhost:8001
+    container_name: ss-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo_data:
+    driver: local
+  uploads_data:
+    driver: local

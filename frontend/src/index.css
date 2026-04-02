@@ -1320,9 +1320,12 @@ select.form-input {
         letter-spacing: -1px;
     }
     
-    .value-cards-grid,
-    .diff-grid {
+    .value-cards-grid {
         grid-template-columns: 1fr;
+    }
+
+    .diff-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
     }
     
     .contact-container {
@@ -1344,5 +1347,20 @@ select.form-input {
     
     .feature-cards-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Tablet */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .value-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .diff-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .feature-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
