@@ -14,12 +14,14 @@ from starlette.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 import os
 import uuid
+import asyncio
 from datetime import datetime, timezone
 
 from config import db, UPLOADS_DIR, logger
 from utils.auth import hash_password
 from utils.rate_limit import limiter, rate_limit_handler
 from utils.middleware import AuditTrailMiddleware
+from utils.escalation import escalation_loop
 
 # Import all routers
 from routers.auth import router as auth_router
@@ -106,6 +108,16 @@ async def setup_initial_data():
     await db.audit_log.create_index("user_email")
     await db.audit_log.create_index("method")
 
+    # Create MongoDB indexes for notifications
+    await db.in_app_notifications.create_index([("created_at", -1)])
+    await db.in_app_notifications.create_index("target_roles")
+    await db.in_app_notifications.create_index("read_by")
+
+    # Create indexes for AI collections
+    await db.ai_chat_history.create_index([("created_at", -1)])
+    await db.ai_chat_history.create_index("user_id")
+    await db.action_plans.create_index([("created_at", -1)])
+
     logger.info("Verificando usuarios iniciales para SmartSafety+...")
     initial_users = [
         {"email": "superadmin@smartsafety.cl", "password": "super123", "name": "Super Admin Safety", "role": "superadmin"},
@@ -127,6 +139,10 @@ async def setup_initial_data():
             logger.info(f"✅ Usuario creado: {user_data['email']}")
 
     logger.info("🔒 Security: CORS restrictivo, Rate limiting, Audit trail activos")
+
+    # Start background escalation engine (checks every 30 min)
+    asyncio.create_task(escalation_loop(interval_minutes=30))
+    logger.info("🔔 Escalation engine started")
 
 # ─── Shutdown ──────────────────────────────────────────────────────────
 @app.on_event("shutdown")

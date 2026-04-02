@@ -6,6 +6,7 @@ from config import db, logger
 from models.schemas import Incident, IncidentCreate, IncidentInvestigation
 from utils.auth import get_current_user
 from utils.pagination import paginated_find
+from utils.websocket import ws_manager
 from utils.pdf import SafetyPDF
 from datetime import datetime, timezone
 import uuid
@@ -42,6 +43,19 @@ async def create_incident(incident: IncidentCreate, current_user: dict = Depends
         reported_by=current_user["name"]
     )
     await db.incidents.insert_one(incident_doc.model_dump())
+
+    # Broadcast via WebSocket
+    await ws_manager.broadcast({
+        "event": "new_incident",
+        "data": {
+            "id": incident_doc.id,
+            "title": incident_doc.title,
+            "severity": incident_doc.severity,
+            "location": incident_doc.location,
+            "reported_by": incident_doc.reported_by,
+        }
+    })
+
     return incident_doc
 
 @router.put("/incidents/{incident_id}/status")

@@ -11,6 +11,7 @@ from models.schemas import SafetyFinding
 from utils.auth import get_current_user
 from utils.pagination import paginated_find
 from utils.rate_limit import limiter
+from utils.websocket import ws_manager
 from openai import AsyncOpenAI
 from datetime import datetime, timezone
 import uuid
@@ -221,6 +222,19 @@ IMPORTANTE: Además de los riesgos generales, presta especial atención a verifi
                             "risk_level": analysis.get("nivel_riesgo_general", "medio")
                         }}
                     )
+
+                    # Broadcast real-time via WebSocket
+                    await ws_manager.broadcast({
+                        "event": "scan_completed",
+                        "data": {
+                            "scan_id": scan_id,
+                            "name": name,
+                            "location": location,
+                            "findings_count": len(findings),
+                            "critical_count": critical_count,
+                            "risk_level": analysis.get("nivel_riesgo_general", "medio"),
+                        }
+                    })
 
                     return {
                         "scan_id": scan_id,
