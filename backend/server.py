@@ -136,7 +136,14 @@ async def setup_initial_data():
     ]
     for user_data in initial_users:
         existing = await db.users.find_one({"email": user_data["email"]})
-        if not existing:
+        if existing:
+            # Always update password hash to ensure it matches
+            await db.users.update_one(
+                {"email": user_data["email"]},
+                {"$set": {"hashed_password": hash_password(user_data["password"]), "role": user_data["role"], "is_active": True}}
+            )
+            logger.info(f"🔄 Password actualizado: {user_data['email']}")
+        else:
             await db.users.insert_one({
                 "id": str(uuid.uuid4()),
                 "email": user_data["email"],
