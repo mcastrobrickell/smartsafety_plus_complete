@@ -77,6 +77,110 @@ async def get_dashboard_charts(current_user: dict = Depends(get_current_user)):
     }
 
 
+# ================== DASHBOARD ADVANCED ==================
+
+@router.get("/dashboard/trends")
+async def get_dashboard_trends(
+    days: int = Query(30, ge=7, le=365),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Advanced trends: daily counts for incidents, findings, scans over N days.
+    Includes risk heatmap by location and compliance KPIs.
+    """
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    # ── Daily incidents trend ──
+    incidents_trend = await db.incidents.aggregate([
+        {"$match": {"reported_at": {"$gte": cutoff}}},
+        {"$addFields": {"date": {"$substr": ["$reported_at", 0, 10]}}},
+        {"$group": {"_id": "$date", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(365)
+
+    # ── Daily findings trend ──
+    findings_trend = await db.findings.aggregate([
+        {"$match": {"created_at": {"$gte": cutoff}}},
+        {"$addFields": {"date": {"$substr": ["$created_at", 0, 10]}}},
+        {"$group": {"_id": "$date", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(365)
+
+    # ── Daily scans trend ──
+    scans_trend = await db.scans.aggregate([
+        {"$match": {"scanned_at": {"$gte": cutoff}}},
+        {"$addFields": {"date": {"$substr": ["$scanned_at", 0, 10]}}},
+        {"$group": {"_id": "$date", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(365)
+
+    # ── Risk heatmap by location ──
+    location_risk = await db.findings.aggregate([
+        {"$lookup": {"from": "scans", "localField": "scan_id", "foreignField": "id", "as": "scan"}},
+        {"$unwind": {"path": "$scan", "preserveNullAndEmptyArrays": True}},
+        {"$group": {
+            "_id": "$scan.location",
+            "total_findings": {"$sum": 1},
+            "critical": {"$sum": {"$cond": [{"$in": ["$severity", ["critico", "critical"]]}, 1, 0]}},
+            "high": {"$sum": {"$cond": [{"$in": ["$severity", ["alto", "high"]]}, 1, 0]}},
+            "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
+        }},
+        {"$sort": {"total_findings": -1}},
+        {"$limit": 15}
+    ]).to_list(15)
+
+    # ── Compliance KPIs ──
+    total_findings = await db.findings.count_documents({})
+    resolved_findings = await db.findings.count_documents({"status": {"$in": ["resolved", "closed"]}})
+    total_incidents = await db.incidents.count_documents({})
+    closed_incidents = await db.incidents.count_documents({"status": "closed"})
+
+    resolution_rate = (resolved_findings / total_findings * 100) if total_findings > 0 else 0
+    incident_closure_rate = (closed_incidents / total_incidents * 100) if total_incidents > 0 else 0
+
+    # Average resolution time (findings)
+    resolution_pipeline = await db.findings.aggregate([
+        {"$match": {"status": {"$in": ["resolved", "closed"]}}},
+        {"$limit": 100}
+    ]).to_list(100)
+
+    # Severity distribution (current pending)
+    severity_dist = await db.findings.aggregate([
+        {"$match": {"status": "pending"}},
+        {"$group": {"_id": "$severity", "count": {"$sum": 1}}}
+    ]).to_list(10)
+
+    return {
+        "period_days": days,
+        "trends": {
+            "incidents": [{"date": d["_id"], "count": d["count"]} for d in incidents_trend],
+            "findings": [{"date": d["_id"], "count": d["count"]} for d in findings_trend],
+            "scans": [{"date": d["_id"], "count": d["count"]} for d in scans_trend],
+        },
+        "heatmap": [
+            {
+                "location": d["_id"] or "Sin ubicación",
+                "total": d["total_findings"],
+                "critical": d["critical"],
+                "high": d["high"],
+                "pending": d["pending"],
+                "risk_score": d["critical"] * 4 + d["high"] * 2 + d["pending"],
+            }
+            for d in location_risk
+        ],
+        "kpis": {
+            "finding_resolution_rate": round(resolution_rate, 1),
+            "incident_closure_rate": round(incident_closure_rate, 1),
+            "total_findings": total_findings,
+            "resolved_findings": resolved_findings,
+            "total_incidents": total_incidents,
+            "closed_incidents": closed_incidents,
+            "pending_severity": {d["_id"]: d["count"] for d in severity_dist if d["_id"]},
+        }
+    }
+
+
 # ================== AUDIT LOG ==================
 
 @router.get("/audit-log")

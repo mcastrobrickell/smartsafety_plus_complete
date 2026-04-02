@@ -36,6 +36,7 @@ from routers.notifications import router as notifications_router
 from routers.reports import router as reports_router
 from routers.ecosystem import router as ecosystem_router
 from routers.ai_engine import router as ai_router
+from routers.search import router as search_router
 
 # ─── App ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -85,6 +86,7 @@ api.include_router(notifications_router)
 api.include_router(reports_router)
 api.include_router(ecosystem_router)
 api.include_router(ai_router)
+api.include_router(search_router)
 
 app.include_router(api)
 
