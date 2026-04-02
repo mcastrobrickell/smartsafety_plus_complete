@@ -268,9 +268,9 @@ export default function LandingPage() {
 
           <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'1.5rem',maxWidth:1000,margin:'0 auto' }}>
             {[
-              { name:'Starter', price:'Gratis', period:'hasta 3 usuarios', color:'#94A3B8', features:['Scan 360° (10/mes)','Dashboard básico','Incidentes','EPP básico','1 organización'], cta:'Comenzar Gratis', popular:false },
-              { name:'Professional', price:'$49', period:'USD/mes por usuario', color:'#00E5FF', features:['Scans ilimitados','IA Predictiva + Chat','Escalamiento automático','WebSocket tiempo real','PDFs profesionales','Búsqueda global','Soporte prioritario'], cta:'Probar 14 Días Gratis', popular:true },
-              { name:'Enterprise', price:'Custom', period:'contactar ventas', color:'#FACC15', features:['Todo en Professional','Multi-organización','API dedicada','SLA 99.9%','Onboarding dedicado','Integraciones custom','Soporte 24/7'], cta:'Contactar Ventas', popular:false },
+              { name:'Starter', price:'2 UF', period:'1 usuario · + IVA/mes', color:'#94A3B8', features:['Scan 360° (10/mes)','Dashboard básico','Incidentes','EPP básico','1 organización'], cta:'Comenzar Ahora', popular:false },
+              { name:'Professional', price:'8 UF', period:'hasta 5 usuarios · + IVA/mes', color:'#00E5FF', features:['Scans ilimitados','IA Predictiva + Chat','Escalamiento automático','WebSocket tiempo real','PDFs profesionales','Búsqueda global','Soporte prioritario','+1,5 UF por usuario adicional'], cta:'Probar 14 Días Gratis', popular:true },
+              { name:'Enterprise', price:'12 UF', period:'hasta 8 usuarios · + IVA/mes', color:'#FACC15', features:['Todo en Professional','Multi-organización','API dedicada','SLA 99.9%','Onboarding dedicado','Integraciones custom','Soporte 24/7','+1,5 UF por usuario adicional'], cta:'Contactar Ventas', popular:false },
             ].map((plan, i) => (
               <div key={plan.name} className={`reveal stagger-${i+1}`} style={{
                 background: plan.popular ? 'linear-gradient(145deg, #0A0F1A, #111827)' : '#0A0F1A',
@@ -298,10 +298,12 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+
+          <div className="reveal" style={{ textAlign:'center',marginTop:'2rem',fontSize:'0.8rem',color:'#64748B' }}>
+            <p>Todos los valores en UF + IVA · Facturación mensual · Sin permanencia mínima</p>
+          </div>
         </div>
       </section>
-
-      {/* ═══ CONTACTO ═══ */}
       <section id="contacto" className="landing-section">
         <div className="landing-section-inner">
           <div className="reveal" style={{ textAlign:'center',marginBottom:'1rem' }}>
@@ -314,13 +316,14 @@ export default function LandingPage() {
             <div className="contact-info">
               <h3>Conversemos</h3>
               <p>Nuestro equipo te ayuda a implementar SmartSafety+ en tu operación. Respuesta en menos de 24 horas.</p>
-              <div className="contact-item"><i className="fas fa-envelope"/><span>contacto@smartsafety.cl</span></div>
-              <div className="contact-item"><i className="fab fa-whatsapp"/><span>+56 9 1234 5678</span></div>
-              <div className="contact-item"><i className="fas fa-map-marker-alt"/><span>Santiago, Chile</span></div>
+              <div className="contact-item"><i className="fas fa-envelope"/><span>contacto@tecops.cl</span></div>
+              <div className="contact-item"><i className="fab fa-whatsapp"/><span>+56 9 6681 4830</span></div>
+              <div className="contact-item"><i className="fas fa-phone"/><span>+56 9 6681 4830</span></div>
+              <div className="contact-item"><i className="fas fa-map-marker-alt"/><span>La Concepción 81, of. 214, Providencia</span></div>
 
               <div style={{ marginTop:'2rem',padding:'1.2rem',background:'rgba(0,229,255,0.06)',borderRadius:12,border:'1px solid rgba(0,229,255,0.15)' }}>
                 <div style={{ fontSize:'0.7rem',fontWeight:600,letterSpacing:1,textTransform:'uppercase',color:'#00E5FF',marginBottom:'0.4rem' }}>Garantía</div>
-                <div style={{ fontSize:'0.88rem',color:'#94A3B8',lineHeight:1.6 }}>14 días gratis en plan Professional. Sin tarjeta de crédito. Cancela cuando quieras.</div>
+                <div style={{ fontSize:'0.88rem',color:'#94A3B8',lineHeight:1.6 }}>14 días gratis en plan Professional. Sin tarjeta de crédito. Precios en UF + IVA.</div>
               </div>
             </div>
 
@@ -378,7 +381,7 @@ export default function LandingPage() {
       </footer>
 
       {/* WhatsApp */}
-      <a href="https://wa.me/56912345678" target="_blank" rel="noopener noreferrer" className="whatsapp-float"><i className="fab fa-whatsapp"/></a>
+      <a href="https://wa.me/56966814830" target="_blank" rel="noopener noreferrer" className="whatsapp-float"><i className="fab fa-whatsapp"/></a>
     </div>
   );
 }
