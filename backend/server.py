@@ -49,18 +49,28 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
-# ─── CORS (restrictive — configure via env) ───────────────────────────
-# In production set CORS_ORIGINS in Railway environment variables
-_default_origins = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,https://smartsafety.tecops.cl,http://smartsafety.tecops.cl"
-_cors_origins = os.environ.get('CORS_ORIGINS', _default_origins).split(',')
-_cors_origins = [o.strip() for o in _cors_origins if o.strip()]
+# ─── CORS ─────────────────────────────────────────────────────────────
+# Always include production domains + whatever is in env
+_production_origins = [
+    "https://smartsafety.tecops.cl",
+    "http://smartsafety.tecops.cl",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+]
+_env_cors = os.environ.get('CORS_ORIGINS', '')
+_env_cors = _env_cors.strip().strip('"').strip("'")
+_extra = [o.strip() for o in _env_cors.split(',') if o.strip() and o.strip() != '*']
+_cors_origins = list(set(_production_origins + _extra))
+
+logger.info(f"🌐 CORS origins: {_cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_cors_origins,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ─── Audit Trail Middleware ────────────────────────────────────────────
