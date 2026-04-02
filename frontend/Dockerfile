@@ -9,6 +9,7 @@ RUN npm install --legacy-peer-deps
 # Build args for API URL
 ARG REACT_APP_BACKEND_URL=http://localhost:8001
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
+ENV CI=false
 
 # Build
 COPY . .
