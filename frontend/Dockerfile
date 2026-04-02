@@ -3,8 +3,8 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --legacy-peer-deps
+COPY package.json ./
+RUN npm install --legacy-peer-deps
 
 # Build args for API URL
 ARG REACT_APP_BACKEND_URL=http://localhost:8001
