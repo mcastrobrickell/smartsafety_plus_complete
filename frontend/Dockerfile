@@ -26,7 +26,9 @@ COPY --from=build /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD wget -qO- http://localhost:80/ || exit 1
+ENV PORT=80
 
-CMD ["nginx", "-g", "daemon off;"]
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD wget -qO- http://localhost:$PORT/ || exit 1
+
+CMD ["sh", "-c", "envsubst '$PORT' < /etc/nginx/conf.d/default.conf > /tmp/nginx.conf && mv /tmp/nginx.conf /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
